@@ -9,6 +9,7 @@ import { useEditorStore } from '../../stores/editorStore';
 import { useUIStore } from '../../stores/uiStore';
 import { scrubRawTypstAnchors } from '../../utils/scrubAnchors';
 import { triggerAutoRender } from '../../utils/autoRenderBus';
+import { publishScroll, registerScrollSync } from '../../utils/scrollSyncBus';
 import RenderedMdToolbar from './RenderedMdToolbar';
 import { RenderedMdCommandProvider } from './RenderedMdCommandProvider';
 import './RenderedMd.css';
@@ -135,6 +136,42 @@ const RenderedMd: React.FC = () => {
       console.warn('[RenderedMd] replaceAll failed', err);
     }
   }, [content]);
+
+  // Bidirectional scroll sync with raw-md via scrollSyncBus. We use the
+  // `.rendered-md-content` div (rootRef) as the scroll container, matching
+  // the CSS `overflow-y: auto` on that class. The ignore-flag prevents the
+  // remote→local→remote feedback loop.
+  const scrollIgnoreRef = useRef(false);
+  useEffect(() => {
+    const scrollEl = rootRef.current;
+    if (!scrollEl || !activeFile) return;
+
+    const onScroll = () => {
+      if (scrollIgnoreRef.current) return;
+      const max = scrollEl.scrollHeight - scrollEl.clientHeight;
+      if (max <= 0) return;
+      publishScroll('rendered-md', scrollEl.scrollTop / max);
+    };
+
+    const unregister = registerScrollSync('rendered-md', (ratio) => {
+      const max = scrollEl.scrollHeight - scrollEl.clientHeight;
+      if (max <= 0) return;
+      scrollIgnoreRef.current = true;
+      scrollEl.scrollTop = ratio * max;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          scrollIgnoreRef.current = false;
+        });
+      });
+    });
+
+    scrollEl.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      scrollEl.removeEventListener('scroll', onScroll);
+      unregister();
+    };
+    // activeFile gates this so we don't register before the editor exists.
+  }, [activeFile]);
 
   if (!activeFile) {
     return (

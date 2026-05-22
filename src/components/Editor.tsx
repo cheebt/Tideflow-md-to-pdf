@@ -30,6 +30,7 @@ import { INSTRUCTIONS_DOC } from '../instructionsDoc';
 import { handleError } from '../utils/errorHandler';
 import { registerAutoRenderHandler } from '../utils/autoRenderBus';
 import { programmaticUpdateAnnotation } from '../hooks/useCodeMirrorSetup';
+import { publishScroll, registerScrollSync } from '../utils/scrollSyncBus';
 import { listen } from '@tauri-apps/api/event';
 
 const Editor: React.FC = () => {
@@ -144,6 +145,44 @@ const Editor: React.FC = () => {
       annotations: programmaticUpdateAnnotation.of(true),
     });
   }, [content, editorStateRefs.editorViewRef]);
+
+  // Bidirectional scroll sync with rendered-md (and any other registered
+  // panel). Uses proportional scroll: ratio = scrollTop / scrollable-height.
+  // The ignore-flag prevents the loop where applying a remote ratio fires a
+  // local scroll event that gets re-broadcast.
+  const scrollIgnoreRef = useRef(false);
+  React.useEffect(() => {
+    const scrollEl = editorStateRefs.scrollElRef.current;
+    if (!scrollEl) return;
+
+    const onScroll = () => {
+      if (scrollIgnoreRef.current) return;
+      const max = scrollEl.scrollHeight - scrollEl.clientHeight;
+      if (max <= 0) return;
+      publishScroll('raw-md', scrollEl.scrollTop / max);
+    };
+
+    const unregister = registerScrollSync('raw-md', (ratio) => {
+      const max = scrollEl.scrollHeight - scrollEl.clientHeight;
+      if (max <= 0) return;
+      scrollIgnoreRef.current = true;
+      scrollEl.scrollTop = ratio * max;
+      // Release on the next frame after the scroll event would have fired.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          scrollIgnoreRef.current = false;
+        });
+      });
+    });
+
+    scrollEl.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      scrollEl.removeEventListener('scroll', onScroll);
+      unregister();
+    };
+    // editorReady is the signal that scrollElRef has been populated by the
+    // CodeMirror setup hook.
+  }, [editorReady, editorStateRefs.scrollElRef]);
 
   // Use file operations hook - save/render/file switching
   const { handleSave: handleSaveBase, handleRender } = useFileOperations({
