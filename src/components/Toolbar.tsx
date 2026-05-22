@@ -21,18 +21,19 @@ const Toolbar: React.FC = () => {
   const renameDocument = useEditorStore((s) => s.renameDocument);
   const markDocumentModified = useEditorStore((s) => s.markDocumentModified);
   const {
-  previewVisible,
-  setPreviewVisible,
-  markdownPreviewVisible,
-  setMarkdownPreviewVisible,
-  designModalOpen,
+    rawMdVisible,
+    setRawMdVisible,
+    renderedMdVisible,
+    setRenderedMdVisible,
+    renderedPdfVisible,
+    setRenderedPdfVisible,
+    designModalOpen,
     addToast,
     recentFiles,
     addRecentFile,
     clearRecentFiles,
     setSettingsModalOpen,
     setSettingsModalActiveTab,
-
   } = useUIStore();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [recentDropdownOpen, setRecentDropdownOpen] = useState(false);
@@ -197,13 +198,17 @@ const Toolbar: React.FC = () => {
     }
   };
 
-  const handleTogglePreview = () => {
-    setPreviewVisible(!previewVisible);
-  };
+  // Toggling raw-md/rendered-md is gated by the store so you can't end up
+  // with both off. The store silently no-ops in that case.
+  const handleToggleRawMd = () => setRawMdVisible(!rawMdVisible);
+  const handleToggleRenderedMd = () => setRenderedMdVisible(!renderedMdVisible);
+  const handleToggleRenderedPdf = () => setRenderedPdfVisible(!renderedPdfVisible);
 
-  const handleToggleMarkdownPreview = () => {
-    setMarkdownPreviewVisible(!markdownPreviewVisible);
-  };
+  // Disable a toggle button when clicking it would leave both raw-md and
+  // rendered-md off (the store-level guard would silently refuse, so we
+  // surface that as a disabled state up here).
+  const disableRawMdToggle = rawMdVisible && !renderedMdVisible;
+  const disableRenderedMdToggle = renderedMdVisible && !rawMdVisible;
 
   const handleExportPDF = async () => {
     try {
@@ -380,18 +385,35 @@ const Toolbar: React.FC = () => {
         {/* View Controls */}
         <div className="toolbar-section">
           <button
-            onClick={handleToggleMarkdownPreview}
-            className={markdownPreviewVisible ? 'active' : 'inactive'}
-            title={markdownPreviewVisible ? 'Hide Live Markdown Preview' : 'Show Live Markdown Preview'}
+            onClick={handleToggleRawMd}
+            disabled={disableRawMdToggle}
+            className={rawMdVisible ? 'active' : 'inactive'}
+            title={
+              disableRawMdToggle
+                ? 'At least one of Raw or Rendered MD must stay visible'
+                : rawMdVisible ? 'Hide Raw MD' : 'Show Raw MD'
+            }
           >
-            {markdownPreviewVisible ? '📝 MD' : '🗒 MD'}
+            {rawMdVisible ? '📄 Raw' : '🗎 Raw'}
           </button>
           <button
-            onClick={handleTogglePreview}
-            className={previewVisible ? 'active' : 'inactive'}
-            title={previewVisible ? 'Hide PDF Preview (Ctrl+\\)' : 'Show PDF Preview (Ctrl+\')'}
+            onClick={handleToggleRenderedMd}
+            disabled={disableRenderedMdToggle}
+            className={renderedMdVisible ? 'active' : 'inactive'}
+            title={
+              disableRenderedMdToggle
+                ? 'At least one of Raw or Rendered MD must stay visible'
+                : renderedMdVisible ? 'Hide Rendered MD' : 'Show Rendered MD'
+            }
           >
-            {previewVisible ? '👁️ PDF' : '👁️‍🗨️ PDF'}
+            {renderedMdVisible ? '📝 MD' : '🗒 MD'}
+          </button>
+          <button
+            onClick={handleToggleRenderedPdf}
+            className={renderedPdfVisible ? 'active' : 'inactive'}
+            title={renderedPdfVisible ? 'Hide Rendered PDF (Ctrl+\\)' : 'Show Rendered PDF (Ctrl+\')'}
+          >
+            {renderedPdfVisible ? '👁️ PDF' : '👁️‍🗨️ PDF'}
           </button>
           <button
             type="button"

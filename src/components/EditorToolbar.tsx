@@ -3,6 +3,7 @@ import { EditorView } from 'codemirror';
 import { cmd } from './commands';
 import type { Preferences } from '../types';
 import { DEFAULTS } from '../constants/timing';
+import { useUIStore } from '../stores/uiStore';
 
 // Curated font list for the dropdown
 const FONT_OPTIONS = [
@@ -47,10 +48,13 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onImageWidthChange,
   onSearchToggle,
 }) => {
+  const focusedPanel = useUIStore((s) => s.focusedPanel);
+  const isActive = focusedPanel === 'raw-md';
+
   return (
     <>
       {/* Simple Markdown Toolbar */}
-      <div className="simple-markdown-toolbar">
+      <div className={`simple-markdown-toolbar ${isActive ? 'active' : 'disabled'}`}>
         {/* Text Formatting */}
         <button onClick={() => cmd.bold(editorView!)} title="Bold (Ctrl+B)">
           <strong>B</strong>

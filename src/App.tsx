@@ -17,7 +17,7 @@ import { useWindowManagement } from './hooks/useWindowManagement';
 // Import components
 import TabBar from './components/TabBar';
 import Editor from './components/Editor';
-import MarkdownPreview from './components/MarkdownPreview';
+import RenderedMd from './components/RenderedMd';
 import PDFPreview from './components/PDFPreview';
 import PDFErrorBoundary from './components/PDFErrorBoundary';
 import Toolbar from './components/Toolbar';
@@ -30,16 +30,25 @@ const appLogger = logger.createScoped('App');
 function App() {
   const [loading, setLoading] = useState(true);
   const {
-    previewVisible,
-    setPreviewVisible,
-    markdownPreviewVisible,
-    setMarkdownPreviewVisible,
+    rawMdVisible,
+    setRawMdVisible,
+    renderedMdVisible,
+    setRenderedMdVisible,
+    renderedPdfVisible,
+    setRenderedPdfVisible,
   } = useUIStore();
   const isTyping = useEditorStore((state) => state.isTyping);
-  const previewPanelRef = useRef<ImperativePanelHandle>(null);
-  const markdownPanelRef = useRef<ImperativePanelHandle>(null);
-  const isDraggingRef = useRef(false);
-  const isMarkdownDraggingRef = useRef(false);
+
+  const rawMdPanelRef = useRef<ImperativePanelHandle>(null);
+  const renderedMdPanelRef = useRef<ImperativePanelHandle>(null);
+  const renderedPdfPanelRef = useRef<ImperativePanelHandle>(null);
+
+  // Drag-flags so we know if a collapse came from the user dragging a handle
+  // (in which case we sync the store) vs. from us programmatically resizing.
+  // Handles sit between panels: handleLeft is raw-md ↔ rendered-md;
+  // handleRight is rendered-md ↔ rendered-pdf.
+  const isDraggingHandleLeftRef = useRef(false);
+  const isDraggingHandleRightRef = useRef(false);
 
   // Initialize app with extracted hook
   useAppInitialization();
@@ -47,40 +56,56 @@ function App() {
   // Window management and fullscreen logic
   useWindowManagement(setLoading);
 
-  // Effect to control PDF preview panel visibility and size
+  // Compute default panel sizes based on which panels are visible. Sums to
+  // 100 across visible panels.
+  const computePanelSize = (which: 'raw-md' | 'rendered-md' | 'rendered-pdf') => {
+    const visible = {
+      'raw-md': rawMdVisible,
+      'rendered-md': renderedMdVisible,
+      'rendered-pdf': renderedPdfVisible,
+    } as const;
+    const count = (visible['raw-md'] ? 1 : 0) + (visible['rendered-md'] ? 1 : 0) + (visible['rendered-pdf'] ? 1 : 0);
+    if (count === 0 || !visible[which]) return 0;
+    return Math.floor(100 / count);
+  };
+
+  // Drive each panel's collapsed/expanded state from the store. Resize to a
+  // sensible share of the panel group whenever the visibility flags change.
   useEffect(() => {
-    const panel = previewPanelRef.current;
+    const panel = rawMdPanelRef.current;
     if (!panel) return;
-
-    if (previewVisible) {
-      if (panel.isCollapsed()) {
-        panel.expand();
-      }
-      // Share the right half with whichever other previews are visible.
-      panel.resize(markdownPreviewVisible ? 34 : 50);
-    } else {
-      if (!panel.isCollapsed()) {
-        panel.collapse();
-      }
+    if (rawMdVisible) {
+      if (panel.isCollapsed()) panel.expand();
+      panel.resize(computePanelSize('raw-md'));
+    } else if (!panel.isCollapsed()) {
+      panel.collapse();
     }
-  }, [previewVisible, markdownPreviewVisible]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawMdVisible, renderedMdVisible, renderedPdfVisible]);
 
-  // Effect to control live Markdown preview (middle) panel visibility and size
   useEffect(() => {
-    const panel = markdownPanelRef.current;
+    const panel = renderedMdPanelRef.current;
     if (!panel) return;
-
-    if (markdownPreviewVisible) {
-      if (panel.isCollapsed()) {
-        panel.expand();
-      }
-      panel.resize(previewVisible ? 33 : 50);
-    } else {
-      if (!panel.isCollapsed()) {
-        panel.collapse();
-      }
+    if (renderedMdVisible) {
+      if (panel.isCollapsed()) panel.expand();
+      panel.resize(computePanelSize('rendered-md'));
+    } else if (!panel.isCollapsed()) {
+      panel.collapse();
     }
-  }, [markdownPreviewVisible, previewVisible]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renderedMdVisible, rawMdVisible, renderedPdfVisible]);
+
+  useEffect(() => {
+    const panel = renderedPdfPanelRef.current;
+    if (!panel) return;
+    if (renderedPdfVisible) {
+      if (panel.isCollapsed()) panel.expand();
+      panel.resize(computePanelSize('rendered-pdf'));
+    } else if (!panel.isCollapsed()) {
+      panel.collapse();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renderedPdfVisible, rawMdVisible, renderedMdVisible]);
 
   // Autosave session when key state changes
   const openFiles = useEditorStore((state) => state.openFiles);
@@ -89,16 +114,20 @@ function App() {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       try {
-        // saveSession merges with the existing stored session, so fields we
-        // don't pass (e.g. fullscreen, maximized) are preserved automatically.
-        saveSession({ openFiles, currentFile, previewVisible, markdownPreviewVisible });
+        saveSession({
+          openFiles,
+          currentFile,
+          rawMdVisible,
+          renderedMdVisible,
+          renderedPdfVisible,
+        });
       } catch (error) {
         appLogger.warn('Failed to save session', error);
       }
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [openFiles, currentFile, previewVisible, markdownPreviewVisible]);
+  }, [openFiles, currentFile, rawMdVisible, renderedMdVisible, renderedPdfVisible]);
 
   // Late-load instructions.md if the placeholder is still showing.
   // (Belt-and-braces: useAppInitialization seeds the real content on first
@@ -131,40 +160,52 @@ function App() {
       </div>
       <div className="main-content">
         <PanelGroup direction="horizontal" style={{ height: '100%', overflow: 'hidden' }}>
-          <Panel defaultSize={34} minSize={20}>
+          <Panel
+            ref={rawMdPanelRef}
+            collapsible
+            defaultSize={34}
+            minSize={15}
+            onCollapse={() => {
+              if (isDraggingHandleLeftRef.current && rawMdVisible) {
+                // Only allow collapsing if rendered-md is on — otherwise
+                // re-expand so we never end up with both editor panels off.
+                if (renderedMdVisible) setRawMdVisible(false);
+                else rawMdPanelRef.current?.expand();
+              }
+            }}
+          >
             <Editor />
           </Panel>
           <PanelResizeHandle
             className="resize-handle"
-            onDragging={(isDragging) => (isMarkdownDraggingRef.current = isDragging)}
+            onDragging={(isDragging) => (isDraggingHandleLeftRef.current = isDragging)}
           />
           <Panel
-            ref={markdownPanelRef}
+            ref={renderedMdPanelRef}
             collapsible
             defaultSize={33}
             minSize={15}
             onCollapse={() => {
-              // Sync state if user manually collapses panel by dragging
-              if (isMarkdownDraggingRef.current && markdownPreviewVisible) {
-                setMarkdownPreviewVisible(false);
+              if ((isDraggingHandleLeftRef.current || isDraggingHandleRightRef.current) && renderedMdVisible) {
+                if (rawMdVisible) setRenderedMdVisible(false);
+                else renderedMdPanelRef.current?.expand();
               }
             }}
           >
-            <MarkdownPreview />
+            <RenderedMd />
           </Panel>
           <PanelResizeHandle
             className="resize-handle"
-            onDragging={(isDragging) => (isDraggingRef.current = isDragging)}
+            onDragging={(isDragging) => (isDraggingHandleRightRef.current = isDragging)}
           />
           <Panel
-            ref={previewPanelRef}
+            ref={renderedPdfPanelRef}
             collapsible
             defaultSize={33}
             minSize={20}
             onCollapse={() => {
-              // Sync state if user manually collapses panel by dragging
-              if (isDraggingRef.current && previewVisible) {
-                setPreviewVisible(false);
+              if (isDraggingHandleRightRef.current && renderedPdfVisible) {
+                setRenderedPdfVisible(false);
               }
             }}
           >

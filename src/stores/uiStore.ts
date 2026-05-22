@@ -7,15 +7,28 @@ const uiLogger = logger.createScoped('UIStore');
 
 export type SettingsTabSection = 'general' | 'about';
 
+/**
+ * Which editable panel currently has focus. Drives per-panel toolbar
+ * activation: when a panel is focused, only its toolbar buttons are enabled.
+ */
+export type FocusedPanel = 'raw-md' | 'rendered-md' | null;
+
 // UI-specific store state
 interface UIStoreState {
-  // Preview state
-  previewVisible: boolean;
-  setPreviewVisible: (visible: boolean) => void;
+  // Panel visibility — raw-md (left editor) and rendered-md (middle WYSIWYG)
+  // are mutually-required: at least one must always be visible. Setters
+  // enforce this and silently ignore attempts that would turn both off.
+  // rendered-pdf is independent.
+  rawMdVisible: boolean;
+  setRawMdVisible: (visible: boolean) => void;
+  renderedMdVisible: boolean;
+  setRenderedMdVisible: (visible: boolean) => void;
+  renderedPdfVisible: boolean;
+  setRenderedPdfVisible: (visible: boolean) => void;
 
-  // Live Markdown preview (middle panel) state
-  markdownPreviewVisible: boolean;
-  setMarkdownPreviewVisible: (visible: boolean) => void;
+  // Which editable panel has focus (drives toolbar enable/disable).
+  focusedPanel: FocusedPanel;
+  setFocusedPanel: (panel: FocusedPanel) => void;
 
   // PDF controls
   pdfZoom: number;
@@ -52,14 +65,27 @@ interface UIStoreState {
 }
 
 // Create UI store
-export const useUIStore = create<UIStoreState>((set) => ({
-  // Preview state
-  previewVisible: true,
-  setPreviewVisible: (visible: boolean) => set({ previewVisible: visible }),
+export const useUIStore = create<UIStoreState>((set, get) => ({
+  // Panel visibility — defaults to all three on
+  rawMdVisible: true,
+  setRawMdVisible: (visible: boolean) => {
+    // Refuse to hide raw-md if rendered-md is also off — one of the two
+    // must always be on so the user can edit.
+    if (!visible && !get().renderedMdVisible) return;
+    set({ rawMdVisible: visible });
+  },
+  renderedMdVisible: true,
+  setRenderedMdVisible: (visible: boolean) => {
+    if (!visible && !get().rawMdVisible) return;
+    set({ renderedMdVisible: visible });
+  },
+  renderedPdfVisible: true,
+  setRenderedPdfVisible: (visible: boolean) => set({ renderedPdfVisible: visible }),
 
-  // Live Markdown preview (middle panel) state
-  markdownPreviewVisible: true,
-  setMarkdownPreviewVisible: (visible: boolean) => set({ markdownPreviewVisible: visible }),
+  // Focused panel — drives toolbar enable state. Defaults to raw-md since
+  // that's the panel that's been the editor historically.
+  focusedPanel: 'raw-md',
+  setFocusedPanel: (panel: FocusedPanel) => set({ focusedPanel: panel }),
 
   // PDF controls
   pdfZoom: 1.0,

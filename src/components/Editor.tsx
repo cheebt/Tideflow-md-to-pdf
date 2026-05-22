@@ -33,8 +33,9 @@ import { listen } from '@tauri-apps/api/event';
 const Editor: React.FC = () => {
   // Store state — UI
   const addToast = useUIStore((state) => state.addToast);
-  const setPreviewVisible = useUIStore((s) => s.setPreviewVisible);
+  const setRenderedPdfVisible = useUIStore((s) => s.setRenderedPdfVisible);
   const addRecentFile = useUIStore((s) => s.addRecentFile);
+  const setFocusedPanel = useUIStore((s) => s.setFocusedPanel);
 
   // Active-document state via per-slice selectors so we only re-render on
   // the slices we actually consume.
@@ -131,8 +132,8 @@ const Editor: React.FC = () => {
   // Wrap handleSave to pass setIsSaving and addToast
   const handleSave = useCallback(() => handleSaveBase(setIsSaving, addToast), [handleSaveBase, addToast]);
 
-  // Wrap handleRender to pass setPreviewVisible
-  const handleRenderWithPreview = useCallback(() => handleRender(setPreviewVisible), [handleRender, setPreviewVisible]);
+  // Wrap handleRender to pass setRenderedPdfVisible
+  const handleRenderWithPreview = useCallback(() => handleRender(setRenderedPdfVisible), [handleRender, setRenderedPdfVisible]);
 
   // Use CodeMirror setup hook - editor initialization
   useCodeMirrorSetup({
@@ -430,7 +431,7 @@ const Editor: React.FC = () => {
       if (isMod && e.shiftKey && e.key === 'P') {
         e.preventDefault();
         e.stopPropagation();
-        setPreviewVisible(!useUIStore.getState().previewVisible);
+        setRenderedPdfVisible(!useUIStore.getState().renderedPdfVisible);
         return;
       }
 
@@ -474,7 +475,7 @@ const Editor: React.FC = () => {
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown, true);
     };
-  }, [handleSearchToggle, handleSave, handleRenderWithPreview, setPreviewVisible, editorStateRefs.editorViewRef]);
+  }, [handleSearchToggle, handleSave, handleRenderWithPreview, setRenderedPdfVisible, editorStateRefs.editorViewRef]);
 
   // Handle font changes
   const handleFontChange = async (font: string) => {
@@ -518,6 +519,8 @@ const Editor: React.FC = () => {
         ref={containerRef}
         className="editor-container"
         onPaste={handlePaste}
+        onFocus={() => setFocusedPanel('raw-md')}
+        onMouseDown={() => setFocusedPanel('raw-md')}
       >
       {/* Always render editor toolbar and content, but hide when no file */}
       <div className={`editor-content-wrapper ${currentFile ? '' : 'hidden'}`}>

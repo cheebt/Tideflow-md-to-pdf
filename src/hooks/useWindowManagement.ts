@@ -47,7 +47,8 @@ export function useWindowManagement(setLoading: (loading: boolean) => void) {
 
           const editorState = useEditorStore.getState();
           const preferences = usePreferencesStore.getState().preferences;
-          const previewVisible = useUIStore.getState().previewVisible;
+          const ui = useUIStore.getState();
+          const { rawMdVisible, renderedMdVisible, renderedPdfVisible } = ui;
 
           // "Modified" at the app level means *any* open file has unsaved
           // edits — exit confirmation should fire if any tab is dirty.
@@ -79,7 +80,9 @@ export function useWindowManagement(setLoading: (loading: boolean) => void) {
               saveSession({
                 currentFile: editorState.activeFile,
                 openFiles: editorState.openFiles,
-                previewVisible,
+                rawMdVisible,
+                renderedMdVisible,
+                renderedPdfVisible,
               });
               // Destroy the window
               await appWindow.destroy();
@@ -92,7 +95,9 @@ export function useWindowManagement(setLoading: (loading: boolean) => void) {
             saveSession({
               currentFile: editorState.activeFile,
               openFiles: editorState.openFiles,
-              previewVisible,
+              rawMdVisible,
+              renderedMdVisible,
+              renderedPdfVisible,
             });
             // Close the window
             windowMgmtLogger.debug('Calling destroy on window');
