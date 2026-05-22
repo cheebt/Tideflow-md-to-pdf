@@ -24,6 +24,8 @@
     "@codemirror/search": "^6.5.11",
     "@codemirror/state": "^6.5.2",
     "@codemirror/view": "^6.38.5",
+    "@milkdown/crepe": "^7.21.1",
+    "@milkdown/react": "^7.21.1",
     "@tauri-apps/plugin-dialog": "2.4.0",
     "@tauri-apps/plugin-shell": "^2.3.1",
     "codemirror": "^6.0.2",

@@ -1,0 +1,110 @@
+/* ============================================================================
+   Rendered-md (middle panel) — WYSIWYG markdown editor (Milkdown Crepe)
+   ============================================================================ */
+
+.rendered-md {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  background-color: var(--preview-bg);
+  border-left: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.rendered-md-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  text-align: center;
+  padding: 2rem;
+  gap: 0.5rem;
+}
+
+.rendered-md-empty p { margin: 0; }
+.rendered-md-empty-sub {
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.rendered-md-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 1rem;
+  background: var(--paper-bg, var(--preview-bg));
+}
+
+.rendered-md-content::-webkit-scrollbar { width: 10px; }
+.rendered-md-content::-webkit-scrollbar-track {
+  background: var(--scrollbar-track-bg);
+  border-radius: 5px;
+}
+.rendered-md-content::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, var(--text-tertiary), var(--text-secondary));
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.rendered-md-content::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(to bottom, var(--accent-color), var(--accent-color-strong));
+}
+
+/* Toolbar styling ---------------------------------------------------------- */
+
+.rendered-md-toolbar {
+  padding: 0.4rem 0.6rem;
+  background: var(--bg-gradient-light);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+  min-height: 38px;
+  transition: opacity var(--transition-fast);
+}
+
+.rendered-md-toolbar.disabled {
+  opacity: 0.45;
+}
+
+.rendered-md-toolbar.disabled button:not(:disabled) {
+  /* Defensive — if a button forgot the disabled attr, still grey it out. */
+  pointer-events: none;
+}
+
+.rendered-md-toolbar button {
+  background: var(--interactive-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--interactive-border);
+  border-radius: var(--border-radius-sm, 4px);
+  padding: 0.25rem 0.55rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+  min-width: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rendered-md-toolbar button:hover:not(:disabled) {
+  background: var(--interactive-surface-hover);
+  border-color: var(--interactive-border-hover);
+}
+
+.rendered-md-toolbar button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.rendered-md-toolbar .toolbar-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--border-color);
+  margin: 0 0.25rem;
+}

@@ -117,8 +117,16 @@ export function useAppInitialization() {
               if (last) editorStore.setActiveDocument(last);
             }
 
-            if (typeof session.previewVisible === 'boolean') {
-              uiStore.setPreviewVisible(session.previewVisible);
+            if (typeof session.renderedPdfVisible === 'boolean') {
+              uiStore.setRenderedPdfVisible(session.renderedPdfVisible);
+            }
+
+            if (typeof session.renderedMdVisible === 'boolean') {
+              uiStore.setRenderedMdVisible(session.renderedMdVisible);
+            }
+
+            if (typeof session.rawMdVisible === 'boolean') {
+              uiStore.setRawMdVisible(session.rawMdVisible);
             }
 
             uiStore.setInitialSampleInjected(true);

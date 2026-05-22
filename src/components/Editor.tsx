@@ -28,13 +28,17 @@ import { useAnchorManagement } from '../hooks/useAnchorManagement';
 import { showOpenDialog, readMarkdownFile } from '../api';
 import { INSTRUCTIONS_DOC } from '../instructionsDoc';
 import { handleError } from '../utils/errorHandler';
+import { registerAutoRenderHandler } from '../utils/autoRenderBus';
+import { programmaticUpdateAnnotation } from '../hooks/useCodeMirrorSetup';
+import { publishScroll, registerScrollSync } from '../utils/scrollSyncBus';
 import { listen } from '@tauri-apps/api/event';
 
 const Editor: React.FC = () => {
   // Store state — UI
   const addToast = useUIStore((state) => state.addToast);
-  const setPreviewVisible = useUIStore((s) => s.setPreviewVisible);
+  const setRenderedPdfVisible = useUIStore((s) => s.setRenderedPdfVisible);
   const addRecentFile = useUIStore((s) => s.addRecentFile);
+  const setFocusedPanel = useUIStore((s) => s.setFocusedPanel);
 
   // Active-document state via per-slice selectors so we only re-render on
   // the slices we actually consume.
@@ -117,6 +121,69 @@ const Editor: React.FC = () => {
     editorStateRefs,
   });
 
+  // Expose auto-render to non-editor surfaces (e.g. rendered-md WYSIWYG)
+  // via a module-level bus. Re-registers when the function identity changes
+  // so the bus always invokes the latest hook closure.
+  React.useEffect(() => {
+    return registerAutoRenderHandler(handleAutoRender);
+  }, [handleAutoRender]);
+
+  // Sync external content updates into CodeMirror. When something other than
+  // CodeMirror (rendered-md, file load, etc.) updates the store content, we
+  // need to push that into the editor view too — without it, raw-md stops
+  // mirroring rendered-md edits and the two diverge.
+  //
+  // We skip when the doc already matches (i.e. the change came from this
+  // view) to avoid feedback loops, and we tag the dispatch as programmatic
+  // so the updateListener doesn't treat it as a user edit.
+  React.useEffect(() => {
+    const view = editorStateRefs.editorViewRef.current;
+    if (!view) return;
+    if (view.state.doc.toString() === content) return;
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: content },
+      annotations: programmaticUpdateAnnotation.of(true),
+    });
+  }, [content, editorStateRefs.editorViewRef]);
+
+  // Bidirectional scroll sync with rendered-md (and any other registered
+  // panel). Uses proportional scroll: ratio = scrollTop / scrollable-height.
+  // The ignore-flag prevents the loop where applying a remote ratio fires a
+  // local scroll event that gets re-broadcast.
+  const scrollIgnoreRef = useRef(false);
+  React.useEffect(() => {
+    const scrollEl = editorStateRefs.scrollElRef.current;
+    if (!scrollEl) return;
+
+    const onScroll = () => {
+      if (scrollIgnoreRef.current) return;
+      const max = scrollEl.scrollHeight - scrollEl.clientHeight;
+      if (max <= 0) return;
+      publishScroll('raw-md', scrollEl.scrollTop / max);
+    };
+
+    const unregister = registerScrollSync('raw-md', (ratio) => {
+      const max = scrollEl.scrollHeight - scrollEl.clientHeight;
+      if (max <= 0) return;
+      scrollIgnoreRef.current = true;
+      scrollEl.scrollTop = ratio * max;
+      // Release on the next frame after the scroll event would have fired.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          scrollIgnoreRef.current = false;
+        });
+      });
+    });
+
+    scrollEl.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      scrollEl.removeEventListener('scroll', onScroll);
+      unregister();
+    };
+    // editorReady is the signal that scrollElRef has been populated by the
+    // CodeMirror setup hook.
+  }, [editorReady, editorStateRefs.scrollElRef]);
+
   // Use file operations hook - save/render/file switching
   const { handleSave: handleSaveBase, handleRender } = useFileOperations({
     editorStateRefs,
@@ -131,8 +198,8 @@ const Editor: React.FC = () => {
   // Wrap handleSave to pass setIsSaving and addToast
   const handleSave = useCallback(() => handleSaveBase(setIsSaving, addToast), [handleSaveBase, addToast]);
 
-  // Wrap handleRender to pass setPreviewVisible
-  const handleRenderWithPreview = useCallback(() => handleRender(setPreviewVisible), [handleRender, setPreviewVisible]);
+  // Wrap handleRender to pass setRenderedPdfVisible
+  const handleRenderWithPreview = useCallback(() => handleRender(setRenderedPdfVisible), [handleRender, setRenderedPdfVisible]);
 
   // Use CodeMirror setup hook - editor initialization
   useCodeMirrorSetup({
@@ -430,7 +497,7 @@ const Editor: React.FC = () => {
       if (isMod && e.shiftKey && e.key === 'P') {
         e.preventDefault();
         e.stopPropagation();
-        setPreviewVisible(!useUIStore.getState().previewVisible);
+        setRenderedPdfVisible(!useUIStore.getState().renderedPdfVisible);
         return;
       }
 
@@ -474,7 +541,7 @@ const Editor: React.FC = () => {
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown, true);
     };
-  }, [handleSearchToggle, handleSave, handleRenderWithPreview, setPreviewVisible, editorStateRefs.editorViewRef]);
+  }, [handleSearchToggle, handleSave, handleRenderWithPreview, setRenderedPdfVisible, editorStateRefs.editorViewRef]);
 
   // Handle font changes
   const handleFontChange = async (font: string) => {
@@ -518,6 +585,8 @@ const Editor: React.FC = () => {
         ref={containerRef}
         className="editor-container"
         onPaste={handlePaste}
+        onFocus={() => setFocusedPanel('raw-md')}
+        onMouseDown={() => setFocusedPanel('raw-md')}
       >
       {/* Always render editor toolbar and content, but hide when no file */}
       <div className={`editor-content-wrapper ${currentFile ? '' : 'hidden'}`}>
