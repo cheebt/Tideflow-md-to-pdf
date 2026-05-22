@@ -8,6 +8,7 @@ import { useActiveContent, useActiveFile } from '../../hooks/useActiveDocument';
 import { useEditorStore } from '../../stores/editorStore';
 import { useUIStore } from '../../stores/uiStore';
 import { scrubRawTypstAnchors } from '../../utils/scrubAnchors';
+import { triggerAutoRender } from '../../utils/autoRenderBus';
 import RenderedMdToolbar from './RenderedMdToolbar';
 import { RenderedMdCommandProvider } from './RenderedMdCommandProvider';
 import './RenderedMd.css';
@@ -19,14 +20,18 @@ import './RenderedMd.css';
  *  - On mount and active-file change, replaces editor content with the
  *    active file's markdown.
  *  - When the user edits here, pushes the new markdown back into the store
- *    (so raw-md and rendered-pdf both pick it up).
+ *    (so raw-md and rendered-pdf both pick it up) and asks the auto-render
+ *    bus to schedule a Typst compile.
  *  - When raw-md (or any other source) updates the store, calls replaceAll
  *    so the WYSIWYG view stays in sync.
  *
- * Feedback-loop guard: `lastEmittedRef` records the markdown Crepe most
- * recently emitted. Store updates equal to that value are skipped (they
- * came from us). Updates that differ are treated as external and trigger
- * replaceAll.
+ * Feedback-loop guard: `lastEmittedRef` records the *scrubbed* markdown
+ * Crepe most recently emitted. Store updates whose scrubbed form matches
+ * this value are skipped (they came from us). Updates that differ are
+ * treated as external and trigger replaceAll. Critical that we compare
+ * *scrubbed* values because scrubRawTypstAnchors also trims trailing
+ * whitespace, so the store/raw-md form and the Milkdown form can
+ * legitimately differ in trailing newlines without being a "real" change.
  */
 const RenderedMd: React.FC = () => {
   const activeFile = useActiveFile();
@@ -35,7 +40,7 @@ const RenderedMd: React.FC = () => {
 
   const rootRef = useRef<HTMLDivElement>(null);
   const crepeRef = useRef<Crepe | null>(null);
-  const lastEmittedRef = useRef<string>(content);
+  const lastEmittedRef = useRef<string>(scrubRawTypstAnchors(content));
   const activeFileRef = useRef<string | null>(activeFile);
   activeFileRef.current = activeFile;
 
@@ -64,11 +69,6 @@ const RenderedMd: React.FC = () => {
 
     const initialMarkdown = scrubRawTypstAnchors(content);
     lastEmittedRef.current = initialMarkdown;
-    // Milkdown normalizes its input on initial parse (list markers, escapes,
-    // trailing whitespace, etc.). The first markdownUpdated after creation
-    // is usually that normalization rather than a real user edit, so swallow
-    // it to avoid marking the file dirty just for opening it.
-    let firstUpdateSeen = false;
 
     const crepe = new Crepe({
       root,
@@ -78,19 +78,22 @@ const RenderedMd: React.FC = () => {
     crepe.on((listener) => {
       listener.markdownUpdated((_ctx, markdown) => {
         if (disposed) return;
-        lastEmittedRef.current = markdown;
-
-        if (!firstUpdateSeen) {
-          firstUpdateSeen = true;
-          return;
-        }
+        const scrubbed = scrubRawTypstAnchors(markdown);
+        // Skip if the *meaningful* content didn't change — e.g. Milkdown
+        // re-emitted with a trailing newline added/removed.
+        if (scrubbed === lastEmittedRef.current) return;
+        lastEmittedRef.current = scrubbed;
 
         const path = activeFileRef.current;
         if (!path) return;
         const store = useEditorStore.getState();
-        if (store.documents[path]?.content === markdown) return;
-        store.updateDocumentContent(path, markdown);
+        const prev = store.documents[path]?.content;
+        if (prev === scrubbed) return;
+        store.updateDocumentContent(path, scrubbed);
         store.markDocumentModified(path, true);
+        // Kick the PDF re-render. The bus debounces internally so quick
+        // typing fires only the trailing compile.
+        triggerAutoRender(scrubbed);
       });
 
       listener.focus(() => {

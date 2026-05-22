@@ -28,6 +28,8 @@ import { useAnchorManagement } from '../hooks/useAnchorManagement';
 import { showOpenDialog, readMarkdownFile } from '../api';
 import { INSTRUCTIONS_DOC } from '../instructionsDoc';
 import { handleError } from '../utils/errorHandler';
+import { registerAutoRenderHandler } from '../utils/autoRenderBus';
+import { programmaticUpdateAnnotation } from '../hooks/useCodeMirrorSetup';
 import { listen } from '@tauri-apps/api/event';
 
 const Editor: React.FC = () => {
@@ -117,6 +119,31 @@ const Editor: React.FC = () => {
   const { handleAutoRender } = useContentManagement({
     editorStateRefs,
   });
+
+  // Expose auto-render to non-editor surfaces (e.g. rendered-md WYSIWYG)
+  // via a module-level bus. Re-registers when the function identity changes
+  // so the bus always invokes the latest hook closure.
+  React.useEffect(() => {
+    return registerAutoRenderHandler(handleAutoRender);
+  }, [handleAutoRender]);
+
+  // Sync external content updates into CodeMirror. When something other than
+  // CodeMirror (rendered-md, file load, etc.) updates the store content, we
+  // need to push that into the editor view too — without it, raw-md stops
+  // mirroring rendered-md edits and the two diverge.
+  //
+  // We skip when the doc already matches (i.e. the change came from this
+  // view) to avoid feedback loops, and we tag the dispatch as programmatic
+  // so the updateListener doesn't treat it as a user edit.
+  React.useEffect(() => {
+    const view = editorStateRefs.editorViewRef.current;
+    if (!view) return;
+    if (view.state.doc.toString() === content) return;
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: content },
+      annotations: programmaticUpdateAnnotation.of(true),
+    });
+  }, [content, editorStateRefs.editorViewRef]);
 
   // Use file operations hook - save/render/file switching
   const { handleSave: handleSaveBase, handleRender } = useFileOperations({

@@ -9,6 +9,8 @@ import {
   wrapInBulletListCommand,
   wrapInOrderedListCommand,
 } from '@milkdown/preset-commonmark';
+import { toggleStrikethroughCommand } from '@milkdown/preset-gfm';
+import { undoCommand, redoCommand } from '@milkdown/plugin-history';
 import { useUIStore } from '../../stores/uiStore';
 import { useRenderedMdCommand } from './useRenderedMdCommand';
 
@@ -47,6 +49,27 @@ const RenderedMdToolbar: React.FC = () => {
         type="button"
         disabled={!isActive}
         onMouseDown={preventBlur}
+        onClick={() => run(() => runCommand(callCommand(undoCommand.key)))}
+        title="Undo (Ctrl+Z)"
+      >
+        ↶
+      </button>
+      <button
+        type="button"
+        disabled={!isActive}
+        onMouseDown={preventBlur}
+        onClick={() => run(() => runCommand(callCommand(redoCommand.key)))}
+        title="Redo (Ctrl+Shift+Z)"
+      >
+        ↷
+      </button>
+
+      <div className="toolbar-divider" />
+
+      <button
+        type="button"
+        disabled={!isActive}
+        onMouseDown={preventBlur}
         onClick={() => run(() => runCommand(callCommand(toggleStrongCommand.key)))}
         title="Bold (Ctrl+B)"
       >
@@ -60,6 +83,15 @@ const RenderedMdToolbar: React.FC = () => {
         title="Italic (Ctrl+I)"
       >
         <em>I</em>
+      </button>
+      <button
+        type="button"
+        disabled={!isActive}
+        onMouseDown={preventBlur}
+        onClick={() => run(() => runCommand(callCommand(toggleStrikethroughCommand.key)))}
+        title="Strikethrough"
+      >
+        <s>S</s>
       </button>
       <button
         type="button"
