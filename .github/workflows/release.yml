@@ -7,6 +7,9 @@ on:
   workflow_dispatch: # Allow manual trigger
 
 jobs:
+  # macOS + Linux are built and published straight to the draft release by
+  # tauri-action. Windows is handled by the separate `release-windows` job so
+  # its installers can be code-signed (via SignPath) before they are attached.
   release:
     permissions:
       contents: write
@@ -31,11 +34,6 @@ jobs:
             typst_dir: 'linux'
             typst_asset: 'typst-x86_64-unknown-linux-musl.tar.xz'
             typst_sha256: 'a6044cbad2a954deb921167e257e120ac0a16b20339ec01121194ff9d394996d'
-          - platform: 'windows-latest' # Windows
-            args: ''
-            typst_dir: ''
-            typst_asset: ''
-            typst_sha256: ''
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -122,15 +120,115 @@ jobs:
           includeUpdaterJson: false
           args: ${{ matrix.args }}
 
-      - name: List produced bundles (Linux/macOS)
-        if: runner.os != 'Windows'
+      - name: List produced bundles
         run: |
           echo "Listing src-tauri/target/release/bundle"
           ls -la src-tauri/target/release/bundle || true
 
-      - name: List produced bundles (Windows)
-        if: runner.os == 'Windows'
+  # Windows is built unsigned, then the installers are code-signed by SignPath
+  # (free for open-source projects) and the signed files are attached to the
+  # same draft release created above.
+  #
+  # `needs: release` + `if: always()` guarantees this job starts AFTER the
+  # macOS/Linux job has created the draft release (avoiding a duplicate-release
+  # race), while `always()` still lets Windows run even if a mac/linux leg fails.
+  #
+  # Signing only activates once you configure the SignPath repository
+  # variables/secret (see .github/WORKFLOWS.md > "Windows code signing").
+  # Until then the job publishes UNSIGNED installers with a warning, so the
+  # release pipeline keeps working during setup.
+  release-windows:
+    needs: release
+    if: ${{ always() }}
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # Omitting tagName/releaseName makes tauri-action build only (no release
+      # upload). The Windows Typst binary is vendored in the repo, so no
+      # download step is needed here.
+      - name: Build the app (unsigned)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          includeUpdaterJson: false
+
+      - name: List produced bundles
         shell: pwsh
         run: |
           Write-Host "Listing src-tauri/target/release/bundle"
-          Get-ChildItem -Path src-tauri\target\release\bundle -Force -ErrorAction SilentlyContinue | Format-List || true
+          Get-ChildItem -Path src-tauri\target\release\bundle -Recurse -Include *.msi,*-setup.exe -ErrorAction SilentlyContinue | Format-List
+
+      # Bundle the unsigned installers into one workflow artifact that SignPath
+      # will pull, sign, and hand back.
+      - name: Upload unsigned installers
+        id: upload-unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: tideflow-windows-unsigned
+          path: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+
+      # ---- Signed path: runs only when SignPath is configured ----
+      - name: Sign installers (SignPath)
+        id: signpath
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: SignPath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIG_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Publish SIGNED installers to the release
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: 'Tideflow ${{ github.ref_name }}'
+          draft: true
+          files: |
+            signed/**/*.msi
+            signed/**/*.exe
+
+      # ---- Fallback: SignPath not configured yet ----
+      - name: Publish UNSIGNED installers to the release (SignPath not configured)
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID == '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: 'Tideflow ${{ github.ref_name }}'
+          draft: true
+          files: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*-setup.exe
+
+      - name: Warn that the Windows build is unsigned
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID == '' }}
+        shell: pwsh
+        run: |
+          Write-Warning "SignPath is not configured (repo variable SIGNPATH_ORGANIZATION_ID is empty)."
+          Write-Warning "Windows installers were published UNSIGNED and will trigger SmartScreen."
+          Write-Warning "See .github/WORKFLOWS.md > 'Windows code signing' to finish setup."

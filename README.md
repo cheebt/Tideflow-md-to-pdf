@@ -80,6 +80,12 @@ https://github.com/user-attachments/assets/fea9562b-a315-44c1-abc9-1778ab4cd428
 - Download `Tideflow_X.X.X_x64-setup.exe` from [Releases](https://github.com/cheebt/Tideflow-md-to-pdf/releases)
 - Run the installer
 
+> **"Windows protected your PC"?** On older releases the installer isn't
+> code-signed yet, so Microsoft Defender SmartScreen may warn that the app is
+> unrecognized. Tideflow is open source and safe to run — to continue, click
+> **More info**, then **Run anyway**. (Newer releases are code-signed, so this
+> warning goes away as the signature builds reputation.)
+
 **Linux:**
 - **Debian/Ubuntu**: `sudo dpkg -i tideflow_X.X.X_amd64.deb`
 - **Fedora/RHEL**: `sudo rpm -i tideflow-X.X.X-1.x86_64.rpm`
