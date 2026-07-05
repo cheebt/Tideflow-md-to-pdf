@@ -48,6 +48,8 @@ Tideflow 的目标不是替代高级发布系统。相反，它专注于提供�
 
 从 [Releases](https://github.com/BDenizKoca/Tideflow-md-to-pdf/releases) 页面下载适合你操作系统的安装包。
 
+> **Windows 上出现"Windows 保护了你的电脑"？** 部分早期版本的安装包尚未进行代码签名，因此 Microsoft Defender SmartScreen 可能会提示该应用来源不明。Tideflow 是开源项目，可以放心运行——点击**更多信息**，然后选择**仍要运行**即可继续安装。（较新版本已完成代码签名，随着签名信誉的建立，该提示会逐渐消失。）
+
 ### 基本使用
 
 1. 启动 Tideflow
