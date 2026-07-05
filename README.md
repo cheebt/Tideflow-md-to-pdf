@@ -8,8 +8,8 @@ Write on the left, get a beautifully typeset PDF on the right – instantly.
 
 English | [中文](./README-zh.md)
 
-[![CI](https://github.com/BDenizKoca/Tideflow-md-to-pdf/actions/workflows/ci.yml/badge.svg)](https://github.com/BDenizKoca/Tideflow-md-to-pdf/actions/workflows/ci.yml)
-[![Release](https://github.com/BDenizKoca/Tideflow-md-to-pdf/actions/workflows/release.yml/badge.svg)](https://github.com/BDenizKoca/Tideflow-md-to-pdf/actions/workflows/release.yml)
+[![CI](https://github.com/cheebt/Tideflow-md-to-pdf/actions/workflows/ci.yml/badge.svg)](https://github.com/cheebt/Tideflow-md-to-pdf/actions/workflows/ci.yml)
+[![Release](https://github.com/cheebt/Tideflow-md-to-pdf/actions/workflows/release.yml/badge.svg)](https://github.com/cheebt/Tideflow-md-to-pdf/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 </div>
@@ -77,7 +77,7 @@ https://github.com/user-attachments/assets/fea9562b-a315-44c1-abc9-1778ab4cd428
 ### Download Pre-built Binaries (Recommended)
 
 **Windows:**
-- Download `Tideflow_X.X.X_x64-setup.exe` from [Releases](https://github.com/BDenizKoca/Tideflow-md-to-pdf/releases)
+- Download `Tideflow_X.X.X_x64-setup.exe` from [Releases](https://github.com/cheebt/Tideflow-md-to-pdf/releases)
 - Run the installer
 
 **Linux:**
@@ -97,7 +97,7 @@ https://github.com/user-attachments/assets/fea9562b-a315-44c1-abc9-1778ab4cd428
 
 #### Clone & Run
 ```bash
-git clone https://github.com/BDenizKoca/Tideflow-md-to-pdf.git
+git clone https://github.com/cheebt/Tideflow-md-to-pdf.git
 cd Tideflow-md-to-pdf
 npm install
 npm run tauri:dev
