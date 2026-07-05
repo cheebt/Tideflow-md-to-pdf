@@ -70,9 +70,9 @@ export function saveSession(partial: Partial<TideflowSessionData>) {
     const merged: TideflowSessionData = {
       openFiles: [],
       currentFile: null,
-      rawMdVisible: true,
+      rawMdVisible: false,
       renderedMdVisible: true,
-      renderedPdfVisible: true,
+      renderedPdfVisible: false,
       fullscreen: false,
       maximized: true,
       sampleDocContent: null,

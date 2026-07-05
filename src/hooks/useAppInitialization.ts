@@ -121,13 +121,15 @@ export function useAppInitialization() {
               uiStore.setRenderedPdfVisible(session.renderedPdfVisible);
             }
 
-            if (typeof session.renderedMdVisible === 'boolean') {
-              uiStore.setRenderedMdVisible(session.renderedMdVisible);
-            }
-
-            if (typeof session.rawMdVisible === 'boolean') {
-              uiStore.setRawMdVisible(session.rawMdVisible);
-            }
+            // Restore raw-md / rendered-md visibility. The setters refuse to
+            // hide one while the other is already off (at least one editable
+            // panel must stay visible), so apply the panels being turned ON
+            // before the ones being turned OFF — otherwise, depending on the
+            // initial default, a "turn off" can be rejected and leave both on.
+            if (session.rawMdVisible === true) uiStore.setRawMdVisible(true);
+            if (session.renderedMdVisible === true) uiStore.setRenderedMdVisible(true);
+            if (session.rawMdVisible === false) uiStore.setRawMdVisible(false);
+            if (session.renderedMdVisible === false) uiStore.setRenderedMdVisible(false);
 
             uiStore.setInitialSampleInjected(true);
             sampleInjected = true;

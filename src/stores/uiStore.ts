@@ -66,8 +66,10 @@ interface UIStoreState {
 
 // Create UI store
 export const useUIStore = create<UIStoreState>((set, get) => ({
-  // Panel visibility — defaults to all three on
-  rawMdVisible: true,
+  // Panel visibility — defaults to a rendered-md-only reader view. Raw and
+  // PDF start off so opening a document lands in the WYSIWYG reader; a
+  // returning session still restores whatever layout the user last had.
+  rawMdVisible: false,
   setRawMdVisible: (visible: boolean) => {
     // Refuse to hide raw-md if rendered-md is also off — one of the two
     // must always be on so the user can edit.
@@ -79,12 +81,13 @@ export const useUIStore = create<UIStoreState>((set, get) => ({
     if (!visible && !get().rawMdVisible) return;
     set({ renderedMdVisible: visible });
   },
-  renderedPdfVisible: true,
+  renderedPdfVisible: false,
   setRenderedPdfVisible: (visible: boolean) => set({ renderedPdfVisible: visible }),
 
-  // Focused panel — drives toolbar enable state. Defaults to raw-md since
-  // that's the panel that's been the editor historically.
-  focusedPanel: 'raw-md',
+  // Focused panel — drives toolbar enable state. Defaults to rendered-md to
+  // match the default reader layout, so its toolbar is active on open rather
+  // than the (hidden by default) raw-md editor's.
+  focusedPanel: 'rendered-md',
   setFocusedPanel: (panel: FocusedPanel) => set({ focusedPanel: panel }),
 
   // PDF controls
