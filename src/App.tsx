@@ -50,6 +50,27 @@ function App() {
   const isDraggingHandleLeftRef = useRef(false);
   const isDraggingHandleRightRef = useRef(false);
 
+  // Snapshot panel visibility at first render to seed the initial panel layout.
+  // react-resizable-panels only reads `defaultSize` on mount, and the
+  // visibility effects below can't drive the imperative collapse() on first
+  // load — they run while `loading` is still true (panel refs null, so they
+  // bail) and don't re-run once the panels mount because their deps haven't
+  // changed. Seeding defaultSize declaratively makes the opening layout
+  // correct and flash-free; the effects then handle every later toggle.
+  const [initialPanelSizes] = useState<[number, number, number]>(() => {
+    const s = useUIStore.getState();
+    const vis = [s.rawMdVisible, s.renderedMdVisible, s.renderedPdfVisible];
+    const count = vis.filter(Boolean).length;
+    const base = count > 0 ? Math.floor(100 / count) : 0;
+    let remainder = count > 0 ? 100 - base * count : 0;
+    return vis.map((v) => {
+      if (!v) return 0;
+      const extra = remainder > 0 ? 1 : 0;
+      remainder -= extra;
+      return base + extra;
+    }) as [number, number, number];
+  });
+
   // Initialize app with extracted hook
   useAppInitialization();
 
@@ -163,7 +184,8 @@ function App() {
           <Panel
             ref={rawMdPanelRef}
             collapsible
-            defaultSize={34}
+            collapsedSize={0}
+            defaultSize={initialPanelSizes[0]}
             minSize={15}
             onCollapse={() => {
               if (isDraggingHandleLeftRef.current && rawMdVisible) {
@@ -183,7 +205,8 @@ function App() {
           <Panel
             ref={renderedMdPanelRef}
             collapsible
-            defaultSize={33}
+            collapsedSize={0}
+            defaultSize={initialPanelSizes[1]}
             minSize={15}
             onCollapse={() => {
               if ((isDraggingHandleLeftRef.current || isDraggingHandleRightRef.current) && renderedMdVisible) {
@@ -201,7 +224,8 @@ function App() {
           <Panel
             ref={renderedPdfPanelRef}
             collapsible
-            defaultSize={33}
+            collapsedSize={0}
+            defaultSize={initialPanelSizes[2]}
             minSize={20}
             onCollapse={() => {
               if (isDraggingHandleRightRef.current && renderedPdfVisible) {
