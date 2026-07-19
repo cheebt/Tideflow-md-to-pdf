@@ -42,3 +42,7 @@ src-tauri/WixTools/
 # Lock files (optional - uncomment if you want to ignore)
 # package-lock.json
 # Cargo.lock
+
+# --- cheebt agent hygiene (CHEEBT-TOPO-M1) ---
+.claude/worktrees/
+CLAUDE.local.md
